@@ -11,7 +11,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-se
 .card{background:#fff;border-radius:20px;padding:16px;margin-bottom:14px;box-shadow:0 8px 30px rgba(0,0,0,.25);animation:slideup .6s ease}
 @keyframes slideup{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}
 h2{font-size:16px;color:#333;margin-bottom:10px}
-
 .boss-card{background:linear-gradient(135deg,#fff,#ffeef5)}
 .boss-card.shake{animation:shake .5s}
 @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
@@ -22,7 +21,6 @@ h2{font-size:16px;color:#333;margin-bottom:10px}
 .boss-name{font-weight:bold;color:#e74c3c;font-size:14px}
 .boss-hp{height:12px;background:#eee;border-radius:6px;overflow:hidden;margin-top:4px}
 .boss-hp-fill{height:100%;background:linear-gradient(90deg,#e74c3c,#f39c12,#ffd200);border-radius:6px;transition:width .6s;box-shadow:0 0 10px rgba(243,156,18,.8)}
-
 .exp-text{font-size:12px;color:#888;margin-top:4px}
 .streak-text{font-size:12px;color:#7b2ff7;font-weight:bold;margin-top:4px}
 .exp-bar{height:10px;background:#eee;border-radius:5px;overflow:hidden;margin-top:6px}
@@ -32,7 +30,6 @@ h2{font-size:16px;color:#333;margin-bottom:10px}
 @keyframes swing{0%{transform:rotate(0)}25%{transform:rotate(-10deg)}75%{transform:rotate(10deg)}100%{transform:rotate(0)}}
 .profile-info{flex:1}
 .hero-name{font-weight:bold;font-size:16px;color:#333;margin-bottom:2px}
-
 .quest-item{display:flex;align-items:center;justify-content:space-between;padding:12px;border-radius:14px;margin-bottom:10px;background:linear-gradient(135deg,#f8f9ff,#f0f4ff);border:2px solid transparent;transition:.3s}
 .quest-item:hover{border-color:#7b2ff7;transform:translateY(-3px) scale(1.01)}
 .quest-item.done{opacity:.5}
@@ -42,7 +39,6 @@ h2{font-size:16px;color:#333;margin-bottom:10px}
 .quest-icon{font-size:26px}
 .quest-name{font-weight:bold;font-size:14px;color:#333}
 .quest-reward{font-size:12px;color:#888}
-
 .btn{border:none;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:bold;cursor:pointer;transition:.2s}
 .btn:active{transform:scale(.92)}
 .btn-primary{background:linear-gradient(135deg,#667eea,#7b2ff7);color:#fff;box-shadow:0 4px 14px rgba(123,47,247,.5);animation:glow 2s infinite}
@@ -53,7 +49,6 @@ h2{font-size:16px;color:#333;margin-bottom:10px}
 .btn-boss{background:linear-gradient(135deg,#ff6f00,#f57f17);color:#fff;box-shadow:0 4px 14px rgba(255,111,0,.5);animation:glow-boss 2s infinite}
 @keyframes glow-boss{0%,100%{box-shadow:0 4px 14px rgba(255,111,0,.5)}50%{box-shadow:0 4px 30px rgba(255,111,0,.8)}}
 .btn:disabled{opacity:.5;cursor:not-allowed;animation:none;box-shadow:none}
-
 .inventory-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .inv-slot{background:#f8f9fa;border-radius:12px;padding:8px;text-align:center;min-height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .inv-icon{font-size:26px;animation:pop .5s ease}
@@ -61,7 +56,6 @@ h2{font-size:16px;color:#333;margin-bottom:10px}
 .inv-name{font-size:10px;color:#666;margin-top:2px}
 .inv-empty{color:#ccc;font-size:20px}
 .keys-display{text-align:center;font-size:18px;margin-top:8px;color:#f5576c;font-weight:bold}
-
 .battle-scene{display:flex;align-items:center;justify-content:center;gap:16px;padding:10px 0;margin-bottom:8px;position:relative;min-height:70px}
 .battle-hero,.battle-boss{font-size:36px;transition:transform .3s;position:relative}
 .battle-hero.happy{animation:hero-happy .6s ease}
@@ -76,7 +70,6 @@ h2{font-size:16px;color:#333;margin-bottom:10px}
 @keyframes sparkle{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(1.2)}}
 .star-burst{position:absolute;font-size:18px;animation:star-fly .8s ease forwards;pointer-events:none;z-index:10}
 @keyframes star-fly{0%{opacity:1;transform:translate(0,0) scale(1) rotate(0)}100%{opacity:0;transform:translate(var(--tx),var(--ty)) scale(.3) rotate(180deg)}}
-
 .modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:12px}
 .modal-overlay.hidden{display:none}
 .modal{background:#fff;border-radius:20px;padding:20px;max-width:400px;width:100%;max-height:84vh;overflow-y:auto;animation:zoomin .35s ease;box-shadow:0 10px 40px rgba(0,0,0,.4)}
@@ -92,13 +85,11 @@ h2{font-size:16px;color:#333;margin-bottom:10px}
 @keyframes jump{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
 .quiz-option.wrong{border-color:#e74c3c;background:#fff0f0;animation:shake .4s}
 .op-text{font-size:15px;font-weight:bold;color:#333;line-height:1.4}
-
 .celebration{text-align:center;padding:16px}
 .celebration .big-emoji{font-size:64px;margin:10px 0;animation:spin 3s linear infinite}
 @keyframes spin{0%{transform:rotate(0) scale(1)}50%{transform:rotate(180deg) scale(1.2)}100%{transform:rotate(360deg) scale(1)}}
 .celebration h2{color:#f5576c;font-size:20px}
 .celebration p{color:#666;margin:8px 0}
-
 .parent-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
 .stat-card{background:#f8f9fa;border-radius:12px;padding:10px;text-align:center}
 .stat-value{font-size:18px;font-weight:bold;color:#7b2ff7}
@@ -112,22 +103,23 @@ h2{font-size:16px;color:#333;margin-bottom:10px}
 .day-acc{width:50px;text-align:right;color:#f5576c}
 .password-input{width:100%;padding:10px;border:2px solid #eee;border-radius:10px;font-size:16px;text-align:center;margin:10px 0}
 .bottom-btns{display:flex;gap:10px;justify-content:center;margin-top:14px}
-
 .parent-label{font-size:13px;font-weight:bold;color:#333;margin-top:12px}
 .parent-tip{font-size:11px;color:#999;margin-bottom:4px}
 .parent-textarea{width:100%;padding:8px;border:2px solid #eee;border-radius:10px;font-size:13px;font-family:inherit;resize:vertical}
 .parent-row{display:flex;gap:8px;margin-top:14px}
 .parent-row .btn{flex:1}
-
+.parent-note{font-size:11px;color:#666;background:#f5f0ff;border-radius:10px;padding:8px 10px;line-height:1.5;margin-bottom:8px}
+.period-list{border:1px solid #eee;border-radius:12px;overflow:hidden}
+.period-row{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:13px}
+.period-row:last-child{border-bottom:none}
+.period-meta{flex:1}
+.period-cnt{font-size:11px;color:#999;margin-top:2px}
+.period-empty{text-align:center;color:#bbb;font-size:12px;padding:14px}
+.tag-new{background:#43e97b;color:#fff;border-radius:6px;padding:1px 6px;font-size:10px;margin-left:6px}
+.tag-old{background:#cfcfcf;color:#fff;border-radius:6px;padding:1px 6px;font-size:10px;margin-left:6px}
+.btn-sm{padding:4px 10px;font-size:11px}
 #confetti-canvas{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:200}
 .flash{position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;opacity:0;pointer-events:none;z-index:150}
 .flash.on{animation:flashAnim .5s}
 @keyframes flashAnim{0%{opacity:.8}100%{opacity:0}}
-
-@media (max-width:380px){
-.title{font-size:20px}
-.boss-avatar{font-size:34px}
-.avatar{font-size:38px}
-.quiz-question{font-size:16px}
-.battle-hero,.battle-boss{font-size:30px}
-}
+@media (max-width:380px){.title{font-size:20px}.boss-avatar{font-size:34px}.avatar{font-size:38px}.quiz-question{font-size:16px}.battle-hero,.battle-boss{font-size:30px}}

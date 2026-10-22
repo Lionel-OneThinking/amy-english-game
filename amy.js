@@ -73,13 +73,9 @@ var SPEECH=[
 ];
 
 var SHAPES=[{en:'circle',icon:'⚪'},{en:'square',icon:'🟩'},{en:'triangle',icon:'🔺'},{en:'rectangle',icon:'▬'},{en:'star',icon:'⭐'},{en:'heart',icon:'❤️'}];
-
 var LEVELS=[{name:'Stone Beast',emoji:'🦁',maxExp:60},{name:'Shadow Dragon',emoji:'🐉',maxExp:80},{name:'Gargoyle',emoji:'🗿',maxExp:100},{name:'Sea Monster',emoji:'🧜‍♀️',maxExp:120},{name:'Math Devil',emoji:'👹',maxExp:140}];
-
 var RANKS=[{d:0,name:'Apprentice',icon:'🧙‍♀️'},{d:3,name:'Trainee Mage',icon:'🧝‍♀️'},{d:7,name:'Junior Mage',icon:'🧚‍♀️'},{d:14,name:'Middle Mage',icon:'🦸‍♀️'},{d:30,name:'Senior Mage',icon:'👸'},{d:60,name:'Grand Mage',icon:'👑'}];
-
 var TREASURES=[{icon:'💠',name:'Memory Crystal'},{icon:'🎺',name:'Brave Flute'},{icon:'📏',name:'Wisdom Ruler'},{icon:'🛡️',name:'Hero Shield'},{icon:'💎',name:'Magic Gem'},{icon:'👑',name:'Hero Crown'},{icon:'📖',name:'Book of Knowledge'},{icon:'🌟',name:'Star Piece'},{icon:'🍀',name:'Lucky Clover'}];
-
 var QUESTS=[
 {id:'vocab',icon:'📖',name:'KET Vocabulary',qn:8,reward:48},
 {id:'fill',icon:'✍️',name:'KET Gap Fill',qn:8,reward:48},
@@ -90,107 +86,160 @@ var QUESTS=[
 ];
 
 var PWD='1234';
+var NEW_RATIO=0.3;      // 每天出新题的概率（0.3=30%新题,70%旧题）；想改成 0.2/0.4 改这里
+var RECENT_AS_NEW=2;    // 最近几期算“新题”；想改成 1 期或 3 期改这里
 
 var state={exp:0,bossLevel:0,questsDone:{},inventory:[],keys:0,date:'',days:{},stats:{}};
 var currentQuiz=null,quizList=[],quizIndex=0,quizRight=0,quizType='',quizTotal=8;
 var soundOn=true,audioCtx=null;
-var usedVocab=[],usedSentences=[],usedSpeech=[],usedMath=[];
+var usedVocab=[],usedSentences=[],usedSpeech=[];
 
 function today(){return new Date().toISOString().slice(0,10)}
-function load(){try{var s=localStorage.getItem('amy_adv_v7');if(s){var o=JSON.parse(s);if(o&&o.stats&&o.inventory&&o.days){state=o}}}catch(e){}}
-function save(){try{localStorage.setItem('amy_adv_v7',JSON.stringify(state))}catch(e){}}
-function resetDay(){if(state.date!==today()){state.date=today();state.questsDone={};usedVocab=[];usedSentences=[];usedSpeech=[];usedMath=[];save()}}
+function load(){try{var s=localStorage.getItem('amy_adv_v8');if(s){var o=JSON.parse(s);if(o&&o.stats&&o.inventory&&o.days){state=o}}}catch(e){}}
+function save(){try{localStorage.setItem('amy_adv_v8',JSON.stringify(state))}catch(e){}}
+function resetDay(){if(state.date!==today()){state.date=today();state.questsDone={};usedVocab=[];usedSentences=[];usedSpeech=[];save()}}
 
-/* ===== 家长自定义词库 ===== */
-function getExtraWords(){
-  var raw=localStorage.getItem('amy_extra_words')||'';
+/* ============ 自定义词：按期存储 ============ */
+var PERIOD_KEY='amy_periods_v1';
+
+function parseWordsText(txt){
   var arr=[];
-  raw.split('\n').forEach(function(line){
+  (txt||'').split('\n').forEach(function(line){
+    line=line.trim(); if(!line) return;
     var p=line.split(',');
     if(p.length>=2){
-      var en=p[0].trim(),zh=p[1].trim(),ex=p.slice(2).join(',').trim();
-      if(en&&zh)arr.push({en:en,zh:zh,ex:ex||zh});
+      var en=p[0].trim(), zh=p[1].trim(), ex=p.slice(2).join(',').trim();
+      if(en&&zh) arr.push({en:en,zh:zh,ex:ex||zh});
     }
   });
   return arr;
 }
-function getExtraSentences(){
-  var raw=localStorage.getItem('amy_extra_sentences')||'';
+function parseSentencesText(txt){
   var arr=[];
-  raw.split('\n').forEach(function(line){
+  (txt||'').split('\n').forEach(function(line){
+    line=line.trim(); if(!line) return;
     var p=line.split(',');
     if(p.length>=2){
-      var s=p[0].trim(),ans=p[1].trim();
+      var s=p[0].trim(), ans=p[1].trim();
       var wrong=p.slice(2).map(function(x){return x.trim()}).filter(Boolean);
-      if(s&&ans){
-        if(!wrong.length)wrong=['apple','book','park'];
-        arr.push({sentence:s,answer:ans,wrong:wrong});
-      }
+      if(s&&ans){ if(!wrong.length) wrong=['apple','book','park']; arr.push({sentence:s,answer:ans,wrong:wrong}); }
     }
   });
   return arr;
 }
-function getExtraDialogs(){
-  var raw=localStorage.getItem('amy_extra_dialogs')||'';
+function parseDialogsText(txt){
   var arr=[];
-  raw.split('\n').forEach(function(line){
+  (txt||'').split('\n').forEach(function(line){
+    line=line.trim(); if(!line) return;
     var p=line.split(',');
     if(p.length>=2){
-      var q=p[0].trim(),a=p.slice(1).join(',').trim();
-      if(q&&a)arr.push({q:q,a:a});
+      var q=p[0].trim(), a=p.slice(1).join(',').trim();
+      if(q&&a) arr.push({q:q,a:a});
     }
   });
   return arr;
 }
-function allVocab(){return VOCAB.concat(getExtraWords())}
-function allSentences(){return SENTENCES.concat(getExtraSentences())}
-function allSpeech(){return SPEECH.concat(getExtraDialogs())}
+
+function getPeriods(){
+  // 惰性迁移：把旧版单文本框数据并入一期
+  var raw=localStorage.getItem(PERIOD_KEY);
+  if(!raw){
+    var ow=localStorage.getItem('amy_extra_words')||'';
+    var os=localStorage.getItem('amy_extra_sentences')||'';
+    var od=localStorage.getItem('amy_extra_dialogs')||'';
+    if(ow||os||od){
+      var migrated=[{id:'legacy',tag:'导入期(旧)',words:parseWordsText(ow),sentences:parseSentencesText(os),dialogs:parseDialogsText(od),ts:Date.now()-1000}];
+      localStorage.setItem(PERIOD_KEY,JSON.stringify(migrated));
+      localStorage.removeItem('amy_extra_words');localStorage.removeItem('amy_extra_sentences');localStorage.removeItem('amy_extra_dialogs');
+    } else { localStorage.setItem(PERIOD_KEY,'[]'); }
+    raw=localStorage.getItem(PERIOD_KEY);
+  }
+  try{ var a=JSON.parse(raw); if(!Array.isArray(a)) a=[]; return a; }catch(e){ return []; }
+}
+function savePeriods(arr){ localStorage.setItem(PERIOD_KEY,JSON.stringify(arr)); }
+
+function addPeriod(wTxt,sTxt,dTxt){
+  var ps=getPeriods();
+  var w=parseWordsText(wTxt), s=parseSentencesText(sTxt), d=parseDialogsText(dTxt);
+  if(!w.length&&!s.length&&!d.length){ alert('三个框至少要填一个哦'); return false; }
+  ps.push({id:'p'+Date.now(),tag:'第'+(ps.length+1)+'期',words:w,sentences:s,dialogs:d,ts:Date.now()});
+  savePeriods(ps);
+  return true;
+}
+function deletePeriod(id){
+  var ps=getPeriods().filter(function(p){return p.id!==id});
+  savePeriods(ps);
+}
+
+/* ============ 抽题池：内置归旧题，最近N期为新题 ============ */
+function buildPools(type){
+  var ps=getPeriods();
+  var old=[], neu=[];
+  var newStart=ps.length-RECENT_AS_NEW;
+  ps.forEach(function(p,idx){
+    var target=(idx>=newStart)?neu:old;
+    if(type==='vocab') target=target.concat(p.words||[]);
+    if(type==='fill') target=target.concat(p.sentences||[]);
+    if(type==='speech') target=target.concat(p.dialogs||[]);
+    // 上面 concat 生成新数组，需重新赋值：
+    if(type==='vocab'){ if(idx>=newStart) neu=neu.concat(p.words||[]); else old=old.concat(p.words||[]); }
+    if(type==='fill'){ if(idx>=newStart) neu=neu.concat(p.sentences||[]); else old=old.concat(p.sentences||[]); }
+    if(type==='speech'){ if(idx>=newStart) neu=neu.concat(p.dialogs||[]); else old=old.concat(p.dialogs||[]); }
+  });
+  if(type==='vocab') old=VOCAB.slice().concat(old);
+  if(type==='fill') old=SENTENCES.slice().concat(old);
+  if(type==='speech') old=SPEECH.slice().concat(old);
+  return {old:old, neu:neu};
+}
+
+function keyOfVocab(it){return it.en}
+function keyOfSent(it){return it.sentence}
+function keyOfDial(it){return it.q}
+
+function pickUnseenByKey(pool,usedKeys,maxKeep){
+  if(!pool.length) return null;
+  var keyFn=pool===null?null:null; // placeholder
+  var unseen=pool.filter(function(it){return usedKeys.indexOf(argKey(it))<0});
+  if(!unseen.length){
+    pool.forEach(function(it){var k=argKey(it);var i=usedKeys.indexOf(k);if(i>=0)usedKeys.splice(i,1);});
+    unseen=pool.slice();
+  }
+  var item=unseen[Math.floor(Math.random()*unseen.length)];
+  usedKeys.push(argKey(item));
+  while(usedKeys.length>maxKeep) usedKeys.shift();
+  return item;
+}
+var _keyMode='vocab';
+function argKey(it){ return _keyMode==='vocab'?it.en:(_keyMode==='fill'?it.sentence:it.q); }
+
+function weightedPick(type,usedKeys,maxKeep){
+  var pools=buildPools(type);
+  var all=pools.old.concat(pools.neu);
+  if(!all.length) return null;
+  // 选来源池
+  var useNew = pools.neu.length>0 && Math.random()<NEW_RATIO;
+  var primary=useNew?pools.neu:pools.old;
+  var fallback=useNew?pools.old:pools.neu;
+  if(!primary.length){primary=fallback;fallback=null;}
+  _keyMode=type;
+  var item=pickUnseenByKey(primary,usedKeys,maxKeep);
+  if(!item&&fallback) item=pickUnseenByKey(fallback,usedKeys,maxKeep);
+  return {item:item, all:all};
+}
 
 function pick(arr,n){
   var a=arr.slice();
   for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t}
   return a.slice(0,n);
 }
-function pickUnseen(bank,usedArr,maxKeep){
-  var unseen=[];
-  for(var i=0;i<bank.length;i++){if(usedArr.indexOf(i)<0)unseen.push(i)}
-  if(unseen.length<2){usedArr.length=0;unseen=[];for(var i=0;i<bank.length;i++)unseen.push(i)}
-  var idx=unseen[Math.floor(Math.random()*unseen.length)];
-  usedArr.push(idx);
-  if(usedArr.length>maxKeep)usedArr.shift();
-  return bank[idx];
-}
+
 function dayCount(){return Object.keys(state.days).length}
 function currentRank(){var d=dayCount(),r=RANKS[0];for(var i=0;i<RANKS.length;i++){if(d>=RANKS[i].d)r=RANKS[i]}return r}
 function nextRank(){var d=dayCount();for(var i=0;i<RANKS.length;i++){if(d<RANKS[i].d)return RANKS[i]}return null}
 
-function tone(freq,dur,type,vol,delay){
-  if(!soundOn)return;
-  try{
-    if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-    var st=audioCtx.currentTime+(delay||0);
-    var o=audioCtx.createOscillator(),g=audioCtx.createGain();
-    o.type=type||'sine';o.frequency.setValueAtTime(freq,st);
-    g.gain.setValueAtTime(vol||0.15,st);
-    g.gain.exponentialRampToValueAtTime(0.001,st+dur);
-    o.connect(g);g.connect(audioCtx.destination);o.start(st);o.stop(st+dur);
-  }catch(e){}
-}
-function noise(dur,vol,delay){
-  if(!soundOn)return;
-  try{
-    if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-    var st=audioCtx.currentTime+(delay||0);
-    var len=Math.floor(audioCtx.sampleRate*dur);
-    var buf=audioCtx.createBuffer(1,len,audioCtx.sampleRate);
-    var data=buf.getChannelData(0);
-    for(var i=0;i<len;i++){data[i]=(Math.random()*2-1)*(1-i/len)}
-    var src=audioCtx.createBufferSource();src.buffer=buf;
-    var g=audioCtx.createGain();g.gain.value=vol||0.12;
-    var f=audioCtx.createBiquadFilter();f.type='highpass';f.frequency.value=800;
-    src.connect(f);f.connect(g);g.connect(audioCtx.destination);src.start(st);
-  }catch(e){}
-}
+/* ============ 音效 ============ */
+function tone(freq,dur,type,vol,delay){if(!soundOn)return;try{if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();var st=audioCtx.currentTime+(delay||0);var o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=type||'sine';o.frequency.setValueAtTime(freq,st);g.gain.setValueAtTime(vol||0.15,st);g.gain.exponentialRampToValueAtTime(0.001,st+dur);o.connect(g);g.connect(audioCtx.destination);o.start(st);o.stop(st+dur);}catch(e){}}
+function noise(dur,vol,delay){if(!soundOn)return;try{if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();var st=audioCtx.currentTime+(delay||0);var len=Math.floor(audioCtx.sampleRate*dur);var buf=audioCtx.createBuffer(1,len,audioCtx.sampleRate);var data=buf.getChannelData(0);for(var i=0;i<len;i++){data[i]=(Math.random()*2-1)*(1-i/len)}var src=audioCtx.createBufferSource();src.buffer=buf;var g=audioCtx.createGain();g.gain.value=vol||0.12;var f=audioCtx.createBiquadFilter();f.type='highpass';f.frequency.value=800;src.connect(f);f.connect(g);g.connect(audioCtx.destination);src.start(st);}catch(e){}}
 function sfxClick(){tone(620,0.07,'triangle',0.12)}
 function sfxOpen(){tone(400,0.1,'sine',0.1);tone(700,0.12,'sine',0.08,0.06)}
 function sfxRight(){tone(880,0.12,'sine',0.14);tone(1180,0.16,'sine',0.12,0.1);tone(1560,0.2,'triangle',0.1,0.2);noise(0.25,0.06,0.05)}
@@ -201,6 +250,7 @@ function sfxAllClear(){[523,659,784,1046,1318,1568,2093].forEach(function(f,i){t
 function sfxBossChallenge(){tone(440,0.15,'sawtooth',0.12);tone(330,0.15,'sawtooth',0.12,0.15);tone(550,0.2,'sawtooth',0.14,0.3);noise(0.4,0.08,0.1)}
 function toggleSound(){soundOn=!soundOn;document.getElementById('sound-btn').textContent=soundOn?'🔊 Sound On':'🔇 Sound Off';if(soundOn)sfxClick()}
 
+/* ============ 渲染 ============ */
 function renderAll(){
   var finished=state.bossLevel>=LEVELS.length;
   var lv=finished?LEVELS[LEVELS.length-1]:LEVELS[state.bossLevel];
@@ -219,7 +269,6 @@ function renderAll(){
   renderQuests();renderInventory();
   document.getElementById('keys-display').textContent=state.keys>0?'🗝️ Keys × '+state.keys:'';
 }
-
 function renderQuests(){
   var html='';
   for(var i=0;i<QUESTS.length;i++){
@@ -230,7 +279,6 @@ function renderQuests(){
   }
   document.getElementById('quest-list').innerHTML=html;
 }
-
 function renderInventory(){
   var items=state.inventory.slice(-8),html='';
   for(var i=0;i<8;i++){
@@ -240,34 +288,36 @@ function renderInventory(){
   document.getElementById('inventory-grid').innerHTML=html;
 }
 
+/* ============ 出题 ============ */
 function genVocab(hard){
-  var bank=allVocab();
-  var c=pickUnseen(bank,usedVocab,20);
+  var r=weightedPick('vocab',usedVocab,20);
+  var bank=r.all;
+  var c=r.item;
+  var others=bank.filter(function(v){return v.en!==c.en});
   if(hard){
-    var ws=pick(bank.filter(function(v){return v.en!==c.en}),3).map(function(v){return v.ex});
+    var ws=pick(others,3).map(function(v){return v.ex});
     return{qEn:'Which word means: "'+c.ex+'"?',opts:pick(ws.concat([c.en]),4),answer:c.en};
   }
   if(Math.random()>0.5){
-    var ws2=pick(bank.filter(function(v){return v.en!==c.en}),3).map(function(v){return v.ex});
+    var ws2=pick(others,3).map(function(v){return v.ex});
     return{qEn:'What does "'+c.en+'" mean?',opts:pick(ws2.concat([c.ex]),4),answer:c.ex};
   }
-  var ws3=pick(bank.filter(function(v){return v.en!==c.en}),3).map(function(v){return v.en});
+  var ws3=pick(others,3).map(function(v){return v.en});
   return{qEn:'Which word means: '+c.ex+'?',opts:pick(ws3.concat([c.en]),4),answer:c.en};
 }
-
 function genFill(hard){
-  var bank=allSentences();
-  var c=pickUnseen(bank,usedSentences,12);
+  var r=weightedPick('fill',usedSentences,12);
+  var c=r.item;
   var ws=pick(c.wrong.filter(function(v){return v!==c.answer}),3);
   if(hard){
     return{qEn:'Complete: '+c.sentence+' (Hint: '+c.wrong[0]+' or '+c.answer+'?)',opts:pick(ws.concat([c.answer]),4),answer:c.answer};
   }
   return{qEn:'Fill the gap: '+c.sentence,opts:pick(ws.concat([c.answer]),4),answer:c.answer};
 }
-
 function genSpeech(hard){
-  var bank=allSpeech();
-  var c=pickUnseen(bank,usedSpeech,12);
+  var r=weightedPick('speech',usedSpeech,12);
+  var bank=r.all;
+  var c=r.item;
   if(hard){
     var ws2=pick(bank.filter(function(v){return v.q!==c.q}),3).map(function(v){return v.q});
     return{qEn:'Which question matches: "'+c.a+'"?',opts:pick(ws2.concat([c.q]),4),answer:c.q};
@@ -275,16 +325,11 @@ function genSpeech(hard){
   var ws=pick(bank.filter(function(v){return v.q!==c.q}),3).map(function(v){return v.a});
   return{qEn:c.q+'  Choose the best answer.',opts:pick(ws.concat([c.a]),4),answer:c.a};
 }
-
-function scramble(w){
-  var a=w.split('');
-  for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t}
-  return a.join('');
-}
-
+function scramble(w){var a=w.split('');for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t}return a.join('')}
 function genSpell(hard){
-  var bank=allVocab();
-  var c=pickUnseen(bank,usedVocab,20);
+  var r=weightedPick('vocab',usedVocab,20);
+  var bank=r.all;
+  var c=r.item;
   var minLen=hard?7:4;
   var guard=0;
   while(c.en.length<minLen&&guard<50){c=bank[Math.floor(Math.random()*bank.length)];guard++}
@@ -296,77 +341,20 @@ function genSpell(hard){
   }
   return{qEn:'Unscramble the letters: '+sc.toUpperCase()+'  ('+c.ex+')',opts:pick(ws.concat([c.en]),4),answer:c.en};
 }
-
 function numOpts(ans,range){
   var ws=[],guard=0;
-  while(ws.length<3&&guard<120){
-    guard++;
-    var v=ans+Math.floor(Math.random()*range)-Math.floor(range/2);
-    if(v>=0&&v!==ans&&ws.indexOf(v)<0)ws.push(String(v));
-  }
+  while(ws.length<3&&guard<120){guard++;var v=ans+Math.floor(Math.random()*range)-Math.floor(range/2);if(v>=0&&v!==ans&&ws.indexOf(v)<0)ws.push(String(v));}
   while(ws.length<3){ws.push(String(ans+ws.length+1))}
   return ws.concat([String(ans)]);
 }
-
 function genMath(hard){
-  var key='',kind=0,a=0,b=0,a2=0,b2=0,x=0,y=0,s=SHAPES[0],st=0,gap=0,n=0,retries=0;
-  do{
-    kind=Math.floor(Math.random()*6);
-    if(hard)kind=Math.floor(Math.random()*4);
-    if(kind===0){
-      a=Math.floor(Math.random()*11)+1;b=Math.floor(Math.random()*11)+1;
-      if(hard){a=Math.floor(Math.random()*30)+5;b=Math.floor(Math.random()*20)+3}
-      key=a+'+'+b;
-    }else if(kind===1){
-      a2=Math.floor(Math.random()*15)+5;b2=Math.floor(Math.random()*a2)+1;
-      if(hard){a2=Math.floor(Math.random()*40)+10;b2=Math.floor(Math.random()*25)+1}
-      key=a2+'-'+b2;
-    }else if(kind===2){
-      x=Math.floor(Math.random()*20)+1;y=Math.floor(Math.random()*20)+1;
-      if(hard){x=Math.floor(Math.random()*50)+1;y=Math.floor(Math.random()*50)+1}
-      while(x===y)y=Math.floor(Math.random()*20)+1;
-      key='cmp'+Math.min(x,y)+Math.max(x,y);
-    }else if(kind===3){
-      s=SHAPES[Math.floor(Math.random()*SHAPES.length)];
-      key='shape'+s.en;
-    }else if(kind===4){
-      st=Math.floor(Math.random()*5)+1;gap=Math.floor(Math.random()*3)+1;
-      if(hard){st=Math.floor(Math.random()*10)+2;gap=Math.floor(Math.random()*6)+3}
-      key='pat'+st+gap;
-    }else{
-      n=Math.floor(Math.random()*18)+2;
-      if(hard)n=Math.floor(Math.random()*50)+2;
-      key='adj'+n;
-    }
-    retries++;
-  }while(usedMath.indexOf(key)>=0&&retries<15);
-  usedMath.push(key);
-  if(usedMath.length>10)usedMath.shift();
-
-  if(kind===0){var ans=a+b;return{qEn:'What is '+a+' + '+b+'?',opts:pick(numOpts(ans,hard?15:8),4),answer:String(ans)}}
-  if(kind===1){var ans2=a2-b2;return{qEn:'What is '+a2+' - '+b2+'?',opts:pick(numOpts(ans2,hard?15:8),4),answer:String(ans2)}}
-  if(kind===2){
-    var ans3=x>y?'bigger':'smaller';
-    var ws3=['bigger','smaller','same'].filter(function(v){return v!==ans3});
-    return{qEn:'Compare: Is '+x+' '+ans3+' than '+y+'?',opts:pick(ws3.concat([ans3]),4),answer:ans3};
-  }
-  if(kind===3){
-    var ws4=pick(SHAPES.filter(function(v){return v.en!==s.en}),3).map(function(v){return v.en});
-    return{qEn:'What shape is '+s.icon+'?',opts:pick(ws4.concat([s.en]),4),answer:s.en};
-  }
-  if(kind===4){
-    var arr=[];for(var i=0;i<4;i++)arr.push(st+gap*i);
-    var ans5=st+gap*4;
-    return{qEn:'Find the pattern: '+arr.join(', ')+'. What comes next?',opts:pick(numOpts(ans5,hard?12:6),4),answer:String(ans5)};
-  }
-  var mode=Math.random()>0.5,ans6=mode?n+1:n-1;
-  return{qEn:(mode?'What number comes after '+n+'?':'What number comes before '+n+'?'),opts:pick(numOpts(ans6,hard?10:6),4),answer:String(ans6)};
+  var kind=hard?Math.floor(Math.random()*4):Math.floor(Math.random()*6);
+  if(kind===0){var a=Math.floor(Math.random()*11)+1,b=Math.floor(Math.random()*11)+1;if(hard){a=Math.floor(Math.random()*30)+5;b=Math.floor(Math.random()*20)+3}var ans=a+b;return{qEn:'What is '+a+' + '+b+'?',opts:pick(numOpts(ans,hard?15:8),4),answer:String(ans)}}
+  if(kind===1){var a2=Math.floor(Math.random()*15)+5,b2=Math.floor(Math.random()*a2)+1;if(hard){a2=Math.floor(Math.random()*40)+10;b2=Math.floor(Math.random()*25)+1}var ans2=a2-b2;return{qEn:'What is '+a2+' - '+b2+'?',opts:pick(numOpts(ans2,hard?15:8),4),answer:String(ans2)}}
+  if(kind===2){var x=Math.floor(Math.random()*20)+1,y=Math.floor(Math.random()*20)+1;if(hard){x=Math.floor(Math.random()*50)+1;y=Math.floor(Math.random()*50)+1}while(x===y)y=Math.floor(Math.random()*20)+1;var ans3=x>y?'bigger':'smaller';var ws3=['bigger','smaller','same'].filter(function(v){return v!==ans3});return{qEn:'Compare: Is '+x+' '+ans3+' than '+y+'?',opts:pick(ws3.concat([ans3]),4),answer:ans3}}
+  var s=SHAPES[Math.floor(Math.random()*SHAPES.length)];var ws4=pick(SHAPES.filter(function(v){return v.en!==s.en}),3).map(function(v){return v.en});return{qEn:'What shape is '+s.icon+'?',opts:pick(ws4.concat([s.en]),4),answer:s.en};
 }
-
-function genBossQuiz(){
-  return[genVocab(true),genFill(true),genSpeech(true),genSpell(true),genMath(true)];
-}
-
+function genBossQuiz(){return[genVocab(true),genFill(true),genSpeech(true),genSpell(true),genMath(true)]}
 function genQuiz(type){
   if(type==='vocab')return genVocab(false);
   if(type==='fill')return genFill(false);
@@ -374,25 +362,19 @@ function genQuiz(type){
   if(type==='spell')return genSpell(false);
   return genMath(false);
 }
-
 function startQuiz(type){
-  sfxClick();
-  quizType=type;quizList=[];quizIndex=0;quizRight=0;
+  sfxClick();quizType=type;quizList=[];quizIndex=0;quizRight=0;
   for(var i=0;i<QUESTS.length;i++){if(QUESTS[i].id===type)quizTotal=QUESTS[i].qn}
   if(type==='boss'){sfxBossChallenge();quizList=genBossQuiz()}
   else{for(var k=0;k<quizTotal;k++)quizList.push(genQuiz(type))}
   showQuestion();
 }
-
 function getBossEmoji(){return state.bossLevel>=LEVELS.length?'🏆':LEVELS[state.bossLevel].emoji}
-
 function showQuestion(){
   currentQuiz=quizList[quizIndex];
-  var box=document.createElement('div');
-  box.className='quiz-options';
+  var box=document.createElement('div');box.className='quiz-options';
   for(var i=0;i<currentQuiz.opts.length;i++){
-    var d=document.createElement('div');
-    d.className='quiz-option';
+    var d=document.createElement('div');d.className='quiz-option';
     d.innerHTML='<div class="op-text">'+currentQuiz.opts[i]+'</div>';
     d.setAttribute('data-check',currentQuiz.opts[i]);
     d.onclick=function(){checkAnswer(this,this.getAttribute('data-check'))};
@@ -401,157 +383,96 @@ function showQuestion(){
   var pctProgress=(quizIndex/quizTotal)*100;
   var titleText=quizType==='boss'?'👹 BOSS CHALLENGE':'⚔️ Question '+(quizIndex+1)+' / '+quizTotal;
   showModal('<h2>'+titleText+'</h2><div class="battle-scene" id="battle-scene"><div class="battle-hero" id="battle-hero">🧙‍♀️</div><div class="battle-swords">⚡</div><div class="battle-boss" id="battle-boss">'+getBossEmoji()+'</div></div><div class="quiz-progress"><div class="quiz-progress-fill" style="width:'+pctProgress+'%"></div></div><div class="quiz-question">'+currentQuiz.qEn+'</div><div id="quiz-box-holder"></div><div id="quiz-msg" style="text-align:center;margin-top:10px;font-size:14px"></div>');
-  document.getElementById('quiz-box-holder').appendChild(box);
-  sfxOpen();
+  document.getElementById('quiz-box-holder').appendChild(box);sfxOpen();
 }
-
-function spawnStars(){
-  var scene=document.getElementById('battle-scene');
-  if(!scene)return;
-  var stars=['⭐','✨','💫','🌟'];
-  for(var i=0;i<5;i++){
-    var s=document.createElement('span');
-    s.className='star-burst';
-    s.textContent=stars[Math.floor(Math.random()*stars.length)];
-    s.style.left='55%';
-    s.style.top='30%';
-    s.style.setProperty('--tx',(Math.random()*60-30)+'px');
-    s.style.setProperty('--ty',(Math.random()*-40-10)+'px');
-    scene.appendChild(s);
-    (function(el){setTimeout(function(){el.remove()},800)})(s);
-  }
-}
-
-function setBattleState(correct){
-  var hero=document.getElementById('battle-hero');
-  var boss=document.getElementById('battle-boss');
-  if(!hero||!boss)return;
-  if(correct){
-    hero.classList.remove('sad');boss.classList.remove('smug');
-    hero.classList.add('happy');boss.classList.add('hit');
-    spawnStars();
-    setTimeout(function(){hero.classList.remove('happy');boss.classList.remove('hit')},700);
-  }else{
-    hero.classList.remove('happy');boss.classList.remove('hit');
-    hero.classList.add('sad');boss.classList.add('smug');
-    setTimeout(function(){hero.classList.remove('sad');boss.classList.remove('smug')},700);
-  }
-}
-
+function spawnStars(){var scene=document.getElementById('battle-scene');if(!scene)return;var stars=['⭐','✨','💫','🌟'];for(var i=0;i<5;i++){var s=document.createElement('span');s.className='star-burst';s.textContent=stars[Math.floor(Math.random()*stars.length)];s.style.left='55%';s.style.top='30%';s.style.setProperty('--tx',(Math.random()*60-30)+'px');s.style.setProperty('--ty',(Math.random()*-40-10)+'px');scene.appendChild(s);(function(el){setTimeout(function(){el.remove()},800)})(s);}}
+function setBattleState(correct){var hero=document.getElementById('battle-hero');var boss=document.getElementById('battle-boss');if(!hero||!boss)return;if(correct){hero.classList.remove('sad');boss.classList.remove('smug');hero.classList.add('happy');boss.classList.add('hit');spawnStars();setTimeout(function(){hero.classList.remove('happy');boss.classList.remove('hit')},700);}else{hero.classList.remove('happy');boss.classList.remove('hit');hero.classList.add('sad');boss.classList.add('smug');setTimeout(function(){hero.classList.remove('sad');boss.classList.remove('smug')},700);}}
 function checkAnswer(el,chosen){
-  if(!currentQuiz)return;
-  sfxClick();
-  var opts=document.querySelectorAll('.quiz-option');
-  for(var i=0;i<opts.length;i++){opts[i].style.pointerEvents='none'}
-  var ok=String(chosen)===String(currentQuiz.answer);
-  recordStats(ok);
-  setBattleState(ok);
-  if(ok){
-    quizRight++;sfxRight();el.classList.add('correct');
-    document.getElementById('quiz-msg').innerHTML='<span style="color:#43e97b;font-weight:bold">🎉 Well done!</span>';
-    currentQuiz=null;setTimeout(nextQuestion,900);
-  }else{
-    sfxWrong();shakeBoss();el.classList.add('wrong');
-    document.getElementById('quiz-msg').innerHTML='<span style="color:#e74c3c">🚨 Oops! Try another one.</span>';
-    setTimeout(function(){
-      var os=document.querySelectorAll('.quiz-option');
-      for(var i=0;i<os.length;i++){os[i].style.pointerEvents='';os[i].classList.remove('wrong')}
-      var m=document.getElementById('quiz-msg');if(m)m.innerHTML='';
-    },1000);
-  }
+  if(!currentQuiz)return;sfxClick();
+  var opts=document.querySelectorAll('.quiz-option');for(var i=0;i<opts.length;i++){opts[i].style.pointerEvents='none'}
+  var ok=String(chosen)===String(currentQuiz.answer);recordStats(ok);setBattleState(ok);
+  if(ok){quizRight++;sfxRight();el.classList.add('correct');document.getElementById('quiz-msg').innerHTML='<span style="color:#43e97b;font-weight:bold">🎉 Well done!</span>';currentQuiz=null;setTimeout(nextQuestion,900);}
+  else{sfxWrong();shakeBoss();el.classList.add('wrong');document.getElementById('quiz-msg').innerHTML='<span style="color:#e74c3c">🚨 Oops! Try another one.</span>';setTimeout(function(){var os=document.querySelectorAll('.quiz-option');for(var i=0;i<os.length;i++){os[i].style.pointerEvents='';os[i].classList.remove('wrong')}var m=document.getElementById('quiz-msg');if(m)m.innerHTML='';},1000);}
 }
-
 function nextQuestion(){quizIndex++;if(quizIndex>=quizTotal){closeModal();finishQuiz();return}showQuestion()}
 function shakeBoss(){var c=document.getElementById('boss-card');c.classList.add('shake');setTimeout(function(){c.classList.remove('shake')},500)}
-
-function recordStats(correct){
-  var d=state.date||today();
-  if(!state.stats)state.stats={};
-  if(!state.stats[d])state.stats[d]={tasks:0,energy:0,answers:0,correct:0};
-  state.stats[d].answers++;
-  if(correct)state.stats[d].correct++;
-  save();
-}
-
+function recordStats(correct){var d=state.date||today();if(!state.stats)state.stats={};if(!state.stats[d])state.stats[d]={tasks:0,energy:0,answers:0,correct:0};state.stats[d].answers++;if(correct)state.stats[d].correct++;save();}
 function finishQuiz(){
-  var base=0;
-  for(var i=0;i<QUESTS.length;i++){if(QUESTS[i].id===quizType)base=QUESTS[i].reward}
+  var base=0;for(var i=0;i<QUESTS.length;i++){if(QUESTS[i].id===quizType)base=QUESTS[i].reward}
   var reward=Math.round(base*quizRight/quizTotal);
-  state.questsDone[quizType]=true;
-  state.exp+=reward;
-  state.days[today()]=true;
-  var d=state.date||today();
-  if(!state.stats[d])state.stats[d]={tasks:0,energy:0,answers:0,correct:0};
-  state.stats[d].tasks++;state.stats[d].energy+=reward;
-  var t=TREASURES[Math.floor(Math.random()*TREASURES.length)];
-  var got=false;
+  state.questsDone[quizType]=true;state.exp+=reward;state.days[today()]=true;
+  var d=state.date||today();if(!state.stats[d])state.stats[d]={tasks:0,energy:0,answers:0,correct:0};state.stats[d].tasks++;state.stats[d].energy+=reward;
+  var t=TREASURES[Math.floor(Math.random()*TREASURES.length)];var got=false;
   if(quizRight>=Math.ceil(quizTotal*0.5)){state.inventory.push({icon:t.icon,name:t.name});got=true}
-  save();renderAll();
-  if(got)setTimeout(sfxTreasure,300);
+  save();renderAll();if(got)setTimeout(sfxTreasure,300);
   if(state.bossLevel<LEVELS.length&&state.exp>=LEVELS[state.bossLevel].maxExp){defeatBoss()}
   else{showCelebrate('✨ Quest Clear!','Correct '+quizRight+' / '+quizTotal+', Energy +'+reward,(got?'Treasure: '+t.icon+' '+t.name:'Get half right to win a treasure!'))}
 }
-
 function defeatBoss(){
-  var lv=LEVELS[state.bossLevel];
-  state.exp=state.exp-lv.maxExp;state.keys++;state.bossLevel++;
-  var finished=state.bossLevel>=LEVELS.length;
-  if(finished)state.exp=0;
+  var lv=LEVELS[state.bossLevel];state.exp=state.exp-lv.maxExp;state.keys++;state.bossLevel++;
+  var finished=state.bossLevel>=LEVELS.length;if(finished)state.exp=0;
   save();renderAll();confetti();flashScreen();
   if(finished){sfxAllClear();showCelebrate('🏆 All Clear!','Amy beat every boss!','5 keys collected. Amazing!')}
   else{sfxWin();showCelebrate('⚔️ '+lv.name+' defeated!','Key +1 🗝️','Next boss: '+LEVELS[state.bossLevel].name)}
 }
-
 function flashScreen(){var f=document.createElement('div');f.className='flash on';document.body.appendChild(f);setTimeout(function(){f.remove()},500)}
 function showCelebrate(title,sub,tip){showModal('<div class="celebration"><div class="big-emoji">🎉</div><h2>'+title+'</h2><p>'+sub+'</p><p style="font-size:13px;color:#888">'+(tip||'')+'</p><button class="btn btn-primary" onclick="closeModal()">Continue</button></div>')}
 function showModal(html){document.getElementById('modal-content').innerHTML=html;document.getElementById('modal-overlay').classList.remove('hidden')}
 function closeModal(){document.getElementById('modal-overlay').classList.add('hidden')}
 function closeModalOutside(e){if(e.target.id==='modal-overlay')closeModal()}
 
-/* ===== 家长中心 ===== */
+/* ============ 家长中心（按期管理） ============ */
 function openParentCenter(){
   sfxClick();
   showModal('<h2>👨‍👩‍👧 家长中心</h2><p style="text-align:center;font-size:13px;color:#888">请输入密码</p><input class="password-input" id="pwd" type="password" placeholder="默认密码 1234"><div style="text-align:center;margin-top:8px"><button class="btn btn-primary" onclick="checkPwd()">确定</button> <button class="btn btn-success" onclick="closeModal()">返回</button></div>');
 }
-function checkPwd(){
-  var v=document.getElementById('pwd').value;
-  if(v===PWD){renderParent()}
-  else{sfxWrong();alert('密码不对哦（默认1234）')}
-}
+function checkPwd(){var v=document.getElementById('pwd').value;if(v===PWD){renderParent()}else{sfxWrong();alert('密码不对哦（默认1234）')}}
+
 function renderParent(){
+  var ps=getPeriods();
+  var rows='';
+  if(!ps.length){rows='<div class="period-empty">还没有自定义期，点下面“添加新一期”。</div>';}
+  else{
+    ps.forEach(function(p,i){
+      var isNew=(i>=ps.length-RECENT_AS_NEW);
+      var tag=isNew?'<span class="tag-new">新题</span>':'<span class="tag-old">旧题</span>';
+      var cnt=(p.words||[]).length+'词 / '+(p.sentences||[]).length+'句 / '+(p.dialogs||[]).length+'问答';
+      rows+='<div class="period-row"><div class="period-meta"><b>'+p.tag+'</b> '+tag+'<div class="period-cnt">'+cnt+'</div></div><button class="btn btn-danger btn-sm" onclick="confirmDeletePeriod(\''+p.id+'\')">删除</button></div>';
+    });
+  }
+  var newPct=Math.round(NEW_RATIO*100);
   showModal('<h2>👨‍👩‍👧 家长中心</h2>'+
-  '<div class="parent-label">📖 加词汇</div><div class="parent-tip">每行一个，格式：英文,中文,英文解释（解释可不填）</div>'+
-  '<textarea class="parent-textarea" id="pWords" rows="4" placeholder="tiger,老虎,a big wild cat">'+(localStorage.getItem('amy_extra_words')||'')+'</textarea>'+
-  '<div class="parent-label">✍️ 加填空句</div><div class="parent-tip">每行一个，格式：句子(带___),正确答案,干扰词,干扰词</div>'+
-  '<textarea class="parent-textarea" id="pSentences" rows="4" placeholder="I see a ___ in the zoo,tiger,lion,apple">'+(localStorage.getItem('amy_extra_sentences')||'')+'</textarea>'+
-  '<div class="parent-label">🎙️ 加问答</div><div class="parent-tip">每行一个，格式：问题,回答</div>'+
-  '<textarea class="parent-textarea" id="pDialogs" rows="4" placeholder="What is your favourite colour?,My favourite colour is pink">'+(localStorage.getItem('amy_extra_dialogs')||'')+'</textarea>'+
-  '<div class="parent-row"><button class="btn btn-success" onclick="saveParentData()">保存</button><button class="btn btn-warning" onclick="showReport()">看周报</button></div>'+
-  '<div class="parent-row"><button class="btn btn-danger" onclick="clearExtra()">清空自定义词</button><button class="btn btn-success" onclick="closeModal()">关闭</button></div>');
+    '<div class="parent-note">当前规则：最近 <b>'+RECENT_AS_NEW+'</b> 期算新题，每天练习约 <b>'+newPct+'%</b> 出新题、<b>'+(100-newPct)+'%</b> 出旧题；内置题库归入旧题池。想调整改 amy.js 顶部 NEW_RATIO / RECENT_AS_NEW。</div>'+
+    '<div class="parent-label">📚 已添加的期（共 '+ps.length+' 期）</div>'+
+    '<div class="period-list">'+rows+'</div>'+
+    '<div class="parent-row"><button class="btn btn-primary" onclick="showAddPeriod()">➕ 添加新一期</button><button class="btn btn-warning" onclick="showReport()">看周报</button></div>'+
+    '<div class="parent-row"><button class="btn btn-danger" onclick="confirmClearAll()">清空所有自定义期</button><button class="btn btn-success" onclick="closeModal()">关闭</button></div>');
 }
-function saveParentData(){
-  localStorage.setItem('amy_extra_words',document.getElementById('pWords').value);
-  localStorage.setItem('amy_extra_sentences',document.getElementById('pSentences').value);
-  localStorage.setItem('amy_extra_dialogs',document.getElementById('pDialogs').value);
-  sfxTreasure();
-  alert('已保存！现在点任务就能出现新词了');
-  closeModal();
+function showAddPeriod(){
+  showModal('<h2>➕ 添加新一期</h2>'+
+    '<div class="parent-label">📖 词汇</div><div class="parent-tip">每行一个：英文,中文,英文解释（解释可不填）</div>'+
+    '<textarea class="parent-textarea" id="npWords" rows="4" placeholder="tiger,老虎,a big wild animal"></textarea>'+
+    '<div class="parent-label">✍️ 填空句</div><div class="parent-tip">每行一个：句子(带___),正确答案,干扰词,干扰词</div>'+
+    '<textarea class="parent-textarea" id="npSentences" rows="4" placeholder="I see a ___ in the zoo,tiger,lion,apple"></textarea>'+
+    '<div class="parent-label">🎙️ 问答</div><div class="parent-tip">每行一个：问题,回答</div>'+
+    '<textarea class="parent-textarea" id="npDialogs" rows="4" placeholder="What is your favourite colour?,My favourite colour is pink"></textarea>'+
+    '<div class="parent-row"><button class="btn btn-success" onclick="doAddPeriod()">保存这一期</button><button class="btn" style="background:#999;color:#fff" onclick="renderParent()">取消返回</button></div>');
 }
-function clearExtra(){
-  if(!confirm('确定清空所有自定义词汇、句子、对话吗？'))return;
-  localStorage.removeItem('amy_extra_words');
-  localStorage.removeItem('amy_extra_sentences');
-  localStorage.removeItem('amy_extra_dialogs');
-  alert('已清空');
-  closeModal();
+function doAddPeriod(){
+  var ok=addPeriod(document.getElementById('npWords').value,document.getElementById('npSentences').value,document.getElementById('npDialogs').value);
+  if(ok){sfxTreasure();alert('已加入新一期！回到任务就能抽到（新一期算新题，约'+Math.round(NEW_RATIO*100)+'%概率出现）。');renderParent();}
+}
+function confirmDeletePeriod(id){
+  if(!confirm('确定删除这一期吗？删除后该期的词不再出现。'))return;
+  deletePeriod(id);renderParent();
+}
+function confirmClearAll(){
+  if(!confirm('确定清空所有自定义期吗？内置题库不受影响。'))return;
+  savePeriods([]);renderParent();
 }
 function showReport(){
   var stats=state.stats||{},days=[];
-  for(var i=6;i>=0;i--){
-    var d=new Date();d.setDate(d.getDate()-i);
-    var key=d.toISOString().slice(0,10);
-    days.push({key:key,data:stats[key]||{tasks:0,energy:0,answers:0,correct:0}});
-  }
+  for(var i=6;i>=0;i--){var d=new Date();d.setDate(d.getDate()-i);var key=d.toISOString().slice(0,10);days.push({key:key,data:stats[key]||{tasks:0,energy:0,answers:0,correct:0}});}
   var tasks=0,energy=0,answers=0,correct=0;
   days.forEach(function(d){tasks+=d.data.tasks;energy+=d.data.energy;answers+=d.data.answers;correct+=d.data.correct});
   var acc=answers?Math.round(correct/answers*100):0,rows='';
@@ -567,23 +488,14 @@ function showReport(){
 function resetGame(){
   if(!confirm('清空所有进度重新开始吗？（自定义词不会被清）'))return;
   state={exp:0,bossLevel:0,questsDone:{},inventory:[],keys:0,date:today(),days:{},stats:{}};
-  usedVocab=[];usedSentences=[];usedSpeech=[];usedMath=[];
+  usedVocab=[];usedSentences=[];usedSpeech=[];
   save();renderAll();
 }
-
 function confetti(){
-  var c=document.getElementById('confetti-canvas'),ctx=c.getContext('2d');
-  c.width=window.innerWidth;c.height=window.innerHeight;
+  var c=document.getElementById('confetti-canvas'),ctx=c.getContext('2d');c.width=window.innerWidth;c.height=window.innerHeight;
   var colors=['#f093fb','#f5576c','#43e97b','#667eea','#f5c518'],ps=[];
   for(var i=0;i<180;i++){ps.push({x:Math.random()*c.width,y:-20,r:Math.random()*6+3,c:colors[Math.floor(Math.random()*colors.length)],vy:Math.random()*4+2,vx:Math.random()*2-1})}
-  var t=0;
-  function loop(){
-    ctx.clearRect(0,0,c.width,c.height);
-    ps.forEach(function(p){p.y+=p.vy;p.x+=p.vx;ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill()});
-    t++;
-    if(t<170){requestAnimationFrame(loop)}else{ctx.clearRect(0,0,c.width,c.height)}
-  }
-  loop();
+  var t=0;function loop(){ctx.clearRect(0,0,c.width,c.height);ps.forEach(function(p){p.y+=p.vy;p.x+=p.vx;ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill()});t++;if(t<170){requestAnimationFrame(loop)}else{ctx.clearRect(0,0,c.width,c.height)}}loop();
 }
 
 load();resetDay();renderAll();
