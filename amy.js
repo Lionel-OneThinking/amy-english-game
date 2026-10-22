@@ -77,11 +77,11 @@ var LEVELS=[{name:'Stone Beast',emoji:'🦁',maxExp:60},{name:'Shadow Dragon',em
 var RANKS=[{d:0,name:'Apprentice',icon:'🧙‍♀️'},{d:3,name:'Trainee Mage',icon:'🧝‍♀️'},{d:7,name:'Junior Mage',icon:'🧚‍♀️'},{d:14,name:'Middle Mage',icon:'🦸‍♀️'},{d:30,name:'Senior Mage',icon:'👸'},{d:60,name:'Grand Mage',icon:'👑'}];
 var TREASURES=[{icon:'💠',name:'Memory Crystal'},{icon:'🎺',name:'Brave Flute'},{icon:'📏',name:'Wisdom Ruler'},{icon:'🛡️',name:'Hero Shield'},{icon:'💎',name:'Magic Gem'},{icon:'👑',name:'Hero Crown'},{icon:'📖',name:'Book of Knowledge'},{icon:'🌟',name:'Star Piece'},{icon:'🍀',name:'Lucky Clover'}];
 var QUESTS=[
-{id:'vocab',icon:'📖',name:'KET Vocabulary',qn:8,reward:48},
-{id:'fill',icon:'✍️',name:'KET Gap Fill',qn:8,reward:48},
-{id:'speech',icon:'🎙️',name:'KET Q and A',qn:8,reward:64},
-{id:'spell',icon:'🔤',name:'Word Spelling',qn:6,reward:40},
-{id:'math',icon:'🔢',name:'Singapore Math P1',qn:8,reward:48},
+{id:'vocab',icon:'📖',name:'KET Vocabulary',qn:5,reward:48},
+{id:'fill',icon:'✍️',name:'KET Gap Fill',qn:5,reward:48},
+{id:'speech',icon:'🎙️',name:'KET Q and A',qn:5,reward:64},
+{id:'spell',icon:'🔤',name:'Word Spelling',qn:4,reward:40},
+{id:'math',icon:'🔢',name:'Singapore Math P1',qn:5,reward:48},
 {id:'boss',icon:'⚔️',name:'Boss Challenge',qn:5,reward:80}
 ];
 
