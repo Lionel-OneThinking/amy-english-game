@@ -73,7 +73,7 @@ var SPEECH=[
 ];
 
 var SHAPES=[{en:'circle',icon:'⚪'},{en:'square',icon:'🟩'},{en:'triangle',icon:'🔺'},{en:'rectangle',icon:'▬'},{en:'star',icon:'⭐'},{en:'heart',icon:'❤️'}];
-var LEVELS=[{name:'Stone Beast',emoji:'🦁',maxExp:60},{name:'Shadow Dragon',emoji:'🐉',maxExp:80},{name:'Gargoyle',emoji:'🗿',maxExp:100},{name:'Sea Monster',emoji:'🧜‍♀️',maxExp:120},{name:'Math Devil',emoji:'👹',maxExp:140}];
+var LEVELS=[{name:'Stone Beast',emoji:'👹',maxExp:60},{name:'Shadow Dragon',emoji:'🐲',maxExp:80},{name:'Gargoyle',emoji:'💀',maxExp:100},{name:'Sea Monster',emoji:'🦑',maxExp:120},{name:'English Devil',emoji:'👿',maxExp:140}];
 var RANKS=[{d:0,name:'Apprentice',icon:'🧙‍♀️'},{d:3,name:'Trainee Mage',icon:'🧝‍♀️'},{d:7,name:'Junior Mage',icon:'🧚‍♀️'},{d:14,name:'Middle Mage',icon:'🦸‍♀️'},{d:30,name:'Senior Mage',icon:'👸'},{d:60,name:'Grand Mage',icon:'👑'}];
 var TREASURES=[{icon:'💠',name:'Memory Crystal'},{icon:'🎺',name:'Brave Flute'},{icon:'📏',name:'Wisdom Ruler'},{icon:'🛡️',name:'Hero Shield'},{icon:'💎',name:'Magic Gem'},{icon:'👑',name:'Hero Crown'},{icon:'📖',name:'Book of Knowledge'},{icon:'🌟',name:'Star Piece'},{icon:'🍀',name:'Lucky Clover'}];
 var QUESTS=[
@@ -89,13 +89,13 @@ var PWD='1234';
 var NEW_RATIO=0.3;      // 每天出新题的概率（0.3=30%新题,70%旧题）；想改成 0.2/0.4 改这里
 var RECENT_AS_NEW=2;    // 最近几期算“新题”；想改成 1 期或 3 期改这里
 
-var state={exp:0,bossLevel:0,questsDone:{},inventory:[],keys:0,date:'',days:{},stats:{}};
+var state={exp:0,bossLevel:0,round:0,difficultyMult:1,questsDone:{},inventory:[],keys:0,date:'',days:{},stats:{}};
 var currentQuiz=null,quizList=[],quizIndex=0,quizRight=0,quizType='',quizTotal=8;
 var soundOn=true,audioCtx=null;
 var usedVocab=[],usedSentences=[],usedSpeech=[];
 
 function today(){return new Date().toISOString().slice(0,10)}
-function load(){try{var s=localStorage.getItem('amy_adv_v8');if(s){var o=JSON.parse(s);if(o&&o.stats&&o.inventory&&o.days){state=o}}}catch(e){}}
+function load(){try{var s=localStorage.getItem('amy_adv_v8');if(s){var o=JSON.parse(s);if(o&&o.stats&&o.inventory&&o.days){state=o}}}catch(e){}if(state.round===undefined)state.round=0;if(state.difficultyMult===undefined)state.difficultyMult=1;save()}
 function save(){try{localStorage.setItem('amy_adv_v8',JSON.stringify(state))}catch(e){}}
 function resetDay(){if(state.date!==today()){state.date=today();state.questsDone={};usedVocab=[];usedSentences=[];usedSpeech=[];save()}}
 
@@ -252,22 +252,23 @@ function toggleSound(){soundOn=!soundOn;document.getElementById('sound-btn').tex
 
 /* ============ 渲染 ============ */
 function renderAll(){
-  var finished=state.bossLevel>=LEVELS.length;
-  var lv=finished?LEVELS[LEVELS.length-1]:LEVELS[state.bossLevel];
+  var lv=LEVELS[state.bossLevel];
   var rank=currentRank();
-  document.getElementById('boss-avatar').textContent=finished?'🏆':lv.emoji;
-  document.getElementById('boss-name').textContent=finished?'🏆 All Clear!':'Boss: '+lv.name;
-  var pct=finished?100:Math.min(100,state.exp/lv.maxExp*100);
+  document.getElementById('boss-avatar').textContent=lv.emoji;
+  document.getElementById('boss-name').textContent='Boss: '+lv.name+' · Round '+state.round;
+  var maxHp=lv.maxExp*(state.difficultyMult||1);
+  var pct=Math.min(100,state.exp/maxHp*100);
   document.getElementById('boss-hp-fill').style.width=pct+'%';
-  document.getElementById('boss-hp-text').textContent=finished?'🏆 You won!':'HP '+state.exp+'/'+lv.maxExp;
+  document.getElementById('boss-hp-text').textContent='HP '+state.exp+'/'+maxHp+' · R'+state.round;
   document.getElementById('avatar').textContent=rank.icon;
   document.getElementById('hero-name').textContent='Amy · '+rank.name;
   document.getElementById('exp-fill').style.width=pct+'%';
-  document.getElementById('exp-text').textContent=finished?'🏆 Clear':'Energy '+state.exp+' / '+lv.maxExp;
+  document.getElementById('exp-text').textContent='Energy '+state.exp+' / '+maxHp+' · R'+state.round;
   var nr=nextRank();
   document.getElementById('streak-text').textContent='Checked in '+dayCount()+' days'+(nr?' · '+(nr.d-dayCount())+' days to '+nr.name:' · top rank!');
   renderQuests();renderInventory();
   document.getElementById('keys-display').textContent=state.keys>0?'🗝️ Keys × '+state.keys:'';
+  document.getElementById('boss-avatar').style.fontSize='50px';
 }
 function renderQuests(){
   var html='';
@@ -369,7 +370,7 @@ function startQuiz(type){
   else{for(var k=0;k<quizTotal;k++)quizList.push(genQuiz(type))}
   showQuestion();
 }
-function getBossEmoji(){return state.bossLevel>=LEVELS.length?'🏆':LEVELS[state.bossLevel].emoji}
+function getBossEmoji(){return LEVELS[state.bossLevel].emoji}
 function showQuestion(){
   currentQuiz=quizList[quizIndex];
   var box=document.createElement('div');box.className='quiz-options';
@@ -381,8 +382,8 @@ function showQuestion(){
     box.appendChild(d);
   }
   var pctProgress=(quizIndex/quizTotal)*100;
-  var titleText=quizType==='boss'?'👹 BOSS CHALLENGE':'⚔️ Question '+(quizIndex+1)+' / '+quizTotal;
-  showModal('<h2>'+titleText+'</h2><div class="battle-scene" id="battle-scene"><div class="battle-hero" id="battle-hero">🧙‍♀️</div><div class="battle-swords">⚡</div><div class="battle-boss" id="battle-boss">'+getBossEmoji()+'</div></div><div class="quiz-progress"><div class="quiz-progress-fill" style="width:'+pctProgress+'%"></div></div><div class="quiz-question">'+currentQuiz.qEn+'</div><div id="quiz-box-holder"></div><div id="quiz-msg" style="text-align:center;margin-top:10px;font-size:14px"></div>');
+  var titleText=quizType==='boss'?(LEVELS[state.bossLevel].emoji+' BOSS CHALLENGE'):'⚔️ Question '+(quizIndex+1)+' / '+quizTotal;
+  showModal('<h2>'+titleText+'</h2><div class="battle-scene" id="battle-scene"><div class="battle-hero" id="battle-hero">🧙‍♀️</div><div class="battle-swords">⚡</div><div class="battle-boss" id="battle-boss" style="font-size:50px">'+getBossEmoji()+'</div></div><div class="quiz-progress"><div class="quiz-progress-fill" style="width:'+pctProgress+'%"></div></div><div class="quiz-question">'+currentQuiz.qEn+'</div><div id="quiz-box-holder"></div><div id="quiz-msg" style="text-align:center;margin-top:10px;font-size:14px"></div>');
   document.getElementById('quiz-box-holder').appendChild(box);sfxOpen();
 }
 function spawnStars(){var scene=document.getElementById('battle-scene');if(!scene)return;var stars=['⭐','✨','💫','🌟'];for(var i=0;i<5;i++){var s=document.createElement('span');s.className='star-burst';s.textContent=stars[Math.floor(Math.random()*stars.length)];s.style.left='55%';s.style.top='30%';s.style.setProperty('--tx',(Math.random()*60-30)+'px');s.style.setProperty('--ty',(Math.random()*-40-10)+'px');scene.appendChild(s);(function(el){setTimeout(function(){el.remove()},800)})(s);}}
@@ -405,14 +406,21 @@ function finishQuiz(){
   var t=TREASURES[Math.floor(Math.random()*TREASURES.length)];var got=false;
   if(quizRight>=Math.ceil(quizTotal*0.5)){state.inventory.push({icon:t.icon,name:t.name});got=true}
   save();renderAll();if(got)setTimeout(sfxTreasure,300);
-  if(state.bossLevel<LEVELS.length&&state.exp>=LEVELS[state.bossLevel].maxExp){defeatBoss()}
+  if(state.exp>=LEVELS[state.bossLevel].maxExp*(state.difficultyMult||1)){defeatBoss()}
   else{showCelebrate('✨ Quest Clear!','Correct '+quizRight+' / '+quizTotal+', Energy +'+reward,(got?'Treasure: '+t.icon+' '+t.name:'Get half right to win a treasure!'))}
 }
 function defeatBoss(){
-  var lv=LEVELS[state.bossLevel];state.exp=state.exp-lv.maxExp;state.keys++;state.bossLevel++;
-  var finished=state.bossLevel>=LEVELS.length;if(finished)state.exp=0;
+  var lv=LEVELS[state.bossLevel];
+  state.exp=state.exp-lv.maxExp;state.keys++;state.bossLevel++;
+  var finished=state.bossLevel>=LEVELS.length;
+  if(finished){
+    state.bossLevel=0;
+    state.round++;
+    state.difficultyMult=(state.difficultyMult||1)*2;
+    state.exp=0;
+  }
   save();renderAll();confetti();flashScreen();
-  if(finished){sfxAllClear();showCelebrate('🏆 All Clear!','Amy beat every boss!','5 keys collected. Amazing!')}
+  if(finished){sfxAllClear();showCelebrate('🏆 Round '+state.round+' Clear!','Amy beat all 5 bosses! Key +1 🗝️','Difficulty doubled! Next round starts now.')}
   else{sfxWin();showCelebrate('⚔️ '+lv.name+' defeated!','Key +1 🗝️','Next boss: '+LEVELS[state.bossLevel].name)}
 }
 function flashScreen(){var f=document.createElement('div');f.className='flash on';document.body.appendChild(f);setTimeout(function(){f.remove()},500)}
@@ -487,7 +495,7 @@ function showReport(){
 
 function resetGame(){
   if(!confirm('清空所有进度重新开始吗？（自定义词不会被清）'))return;
-  state={exp:0,bossLevel:0,questsDone:{},inventory:[],keys:0,date:today(),days:{},stats:{}};
+  state={exp:0,bossLevel:0,round:0,difficultyMult:1,questsDone:{},inventory:[],keys:0,date:today(),days:{},stats:{}};
   usedVocab=[];usedSentences=[];usedSpeech=[];
   save();renderAll();
 }
